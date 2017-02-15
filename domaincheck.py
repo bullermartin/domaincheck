@@ -694,7 +694,7 @@ if __name__ == "__main__":
     # 处理Unicode值，将所有遇到的unicode字符串值转换为UTF-8编码字符串
     SYSCONFIG = ConvertAnyToStr().returnAny(SYSCONFIG)
     DomainList = ConvertAnyToStr().returnAny(DomainList)
-    DomainIpList = ConvertAnyToStr().returnAny(DomainList)
+    DomainIpList = ConvertAnyToStr().returnAny(DomainIpList)
 
     try:
         print('Program is starting.....')
