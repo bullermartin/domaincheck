@@ -313,7 +313,7 @@ class CheckDNSRecoderAct(object):
                 else:   # 非学习模式时，需要检查是否在解析出的IP不在可信IP列表中
                     for ip in self.result['iplist']:  # 循环判断Ping结果IP是否在可信IP列表中
                         if dom[0].replace('.', '') in DomainIpList.keys():
-                            if ip in DomainIpList[DomainIpList[dom[0].replace('.', '')]]:
+                            if ip in DomainIpList[dom[0].replace('.', '')]:
                                 continue
                             else:
                                 print('Discover abnormal ip: %s of Domain: %s' % (ip, dom[0]))
