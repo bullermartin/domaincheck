@@ -21,7 +21,7 @@ cur_path = os.path.abspath('.').replace('\\', '/')
 config_path = cur_path + "/domaincheck.conf"
 config_file = configparser.ConfigParser()
 
-# 以下为脚本默认运行参数，若存在配置文件，则以配置文件中的配置为准，若配置文件不存在，则必须将以下参数配置正确并取消注释，脚本会自动生成配置文件
+# 以下为脚本默认运行参数，若存在配置文件，则以配置文件中的配置为准，若配置文件不存在，则必须将以下参数配置正确，脚本会自动生成配置文件
 # 配置文件中所有配置内容符合configparser要求，并所有的值要求符合json格式，否则将运行报错
 '''
 SYSCONFIG = {
@@ -36,20 +36,20 @@ SYSCONFIG = {
     "validatecodeurl": "http://beian.35.com/manager/ValidateCode.aspx",
     "picpath": sys.path[0].replace('\\', '/')+'/validatecode/',
     "interval": 5,
-    "reqtimeout": 120,
+    "reqtimeout": 60,
     "pingthreshold": 300,
     "alertline" : ['chinanet', 'unicom', 'netcom', 'multiline', 'mobile', 'railcom', 'other', 'oversea'],
     "receiver":{
         "weixin": ["xx"],
         "email": ["xx@xx.com"],
     },
-    # Weixin Team
+    # Ron Team
     "weixin": {
         "corpid": 'xxx',     # corpid是企业id
         "corpsecret": 'xxx',   # corpsecret是企业密钥
-        'toparty': '2',     # toparty否部门ID列表，多个接收者用‘|’分隔，最多支持100个。当touser为@all时忽略本参数
-        'agentid': '1',     # agentid是企业应用的id，整型。可在应用的设置页面查看
-        'safe': '0'         # safe否表示是否是保密消息，0表示否，1表示是，默认0
+        'toparty': '1',     # toparty否部门ID列表，多个接收者用‘|’分隔，最多支持100个。当touser为@all时忽略本参数
+        'agentid': '0',     # agentid是企业应用的id，整型。可在应用的设置页面查看
+        'safe': '1'         # safe否表示是否是保密消息，0表示否，1表示是，默认0
     },
     "email": {
         "host": '',
@@ -63,10 +63,10 @@ SYSCONFIG = {
 
 DomainList = {
     # 测试域名
-    "baidu": [["baidu.com",False]]
+    "baidu": [["baidu.com",False]],
+    "qq": [["qq.com",False]],
 }
 '''
-
 # 脚本默认运行参数结束
 
 DomainIpList = {}
@@ -77,6 +77,7 @@ def CheckDomainICP():
     try:
         checkdomicp =  CheckDomainICPAct()
         for project in DomainList.keys():
+            project = project
             for dom in DomainList[project]:
                 dom[0] = dom[0].lower()
                 if len(dom) ==2 and IsDomain(dom):
@@ -90,16 +91,15 @@ def CheckDomainICP():
                             func = getattr(checkdomicp, "GetDomainICP_%s" % apisrc)
                         else:
                             raise "Don't have ICP Check API source like %s! Please check your ICP Check API source configuration!" % SYSCONFIG["chkicpapiurl"][apisrc]["name"]
-                        icpres = func(str(dom[0]), apisrc)
+
+                        icpres = func(dom[0], apisrc)
                         if icpres["result"]:  # 如果已查到备案结果则退出循环
                             break
-                    print(icpres)
                     # 已查询到结果但没有备案的域名信息发送提醒消息
                     if not icpres["beian"] and icpres["result"]:
-                        SendMessage(str(project), icpres, '备案信息报警')
+                        SendMessage(project, icpres, '备案信息报警')
                     time.sleep(SYSCONFIG["interval"])
                 else:
-                    print(dom)
                     print("请检查%s项目域名列表！" % project)
                     continue
     except Exception as e:
@@ -216,8 +216,11 @@ class CheckDomainICPAct(object):
             result["errormsg"] = ['', e]
 
         # 返回最终查询结果
-        result["apisrc"] = str(SYSCONFIG["chkicpapiurl"][apisrc]["name"].encode(encoding='utf-8'))
-        result["domain"] = str(domain)
+        # if type(SYSCONFIG["chkicpapiurl"][apisrc]["name"]) == str:
+        #     result["apisrc"] = SYSCONFIG["chkicpapiurl"][apisrc]["name"]
+        # else:
+        result["apisrc"] = SYSCONFIG["chkicpapiurl"][apisrc]["name"]
+        result["domain"] = domain
         return result
 
 
@@ -226,9 +229,9 @@ def CheckDNSRecoder():
     try:
         print(time.strftime("[%Y-%m-%d  %H:%M:%S] " + "Check Domain DNS Recoder"))
         for project in DomainList.keys():
-            project = str(project)
+            project = project
             for dom in DomainList[project]:
-                dom[0] = str(dom[0].lower())
+                dom[0] = dom[0].lower()
                 if len(dom) ==2 and IsDomain(dom):
                     # 若域名本身检查状态为False，如果已经备案 则发送提醒消息，并修改预定义值(暂未完善，需要将配置写入文件)
                     # if not dom[1]:
@@ -313,19 +316,19 @@ class CheckDNSRecoderAct(object):
                             if ip in DomainIpList[DomainIpList[dom[0].replace('.', '')]]:
                                 continue
                             else:
-                                print('Discover abnormal ip: %s of Domain: %s' % (str(ip), str(dom[0])))
-                                message = '发现异常IP！ 域名:%s IP:%s' % (str(dom[0]), str(ip))
+                                print('Discover abnormal ip: %s of Domain: %s' % (ip, dom[0]))
+                                message = '发现异常IP！ 域名:%s IP:%s' % (dom[0], ip)
                                 gevent.joinall([
                                     gevent.spawn(SendToWeichat, message, 'Ping检测发现异常IP'),   # 发送微信消息
                                     gevent.spawn(SendToEmail, SYSCONFIG["email"]["sender"], SYSCONFIG["receiver"]["email"], 'Ping检测发现异常IP', message)   # 发送邮件
                                 ])
                         else:
-                            print ("Haven't found domain %s in trusted ip list!  Abnormal IP: %s " % (str(dom[0]), str(ip)))
+                            print ("Haven't found domain %s in trusted ip list!  Abnormal IP: %s " % (dom[0], ip))
                             continue
 
                 # 根据ping检查结果判断响应时间是否需要报警
                 print(self.result)
-                message = '域名:%s ' % str(dom[0])
+                message = '域名:%s ' % dom[0]
                 alert = False
                 for k, v in self.result.items():
                     if k in SYSCONFIG['alertline'] and self.result[k]['num'] > 0:
@@ -497,7 +500,7 @@ def SendMessage(project='', icpres='', title=''):
     message = "项目: %s  域名: %s  错误:%s  来源: %s" % (project, icpres['domain'], icpres['errormsg'][1], icpres['apisrc'])
     # 启动协程发送报警消息
     gevent.joinall([
-        gevent.spawn(SendToWeichat, message, str(title)),   # 发送微信消息
+        gevent.spawn(SendToWeichat, message, title),   # 发送微信消息
         gevent.spawn(SendToEmail, SYSCONFIG["email"]["sender"], SYSCONFIG["receiver"]["email"], title, message)   # 发送邮件
     ])
 
@@ -566,15 +569,13 @@ def SendToWeichat(message='', title=''):
             return data
 
     touser = SYSCONFIG["receiver"]["weixin"]
-    for i in range(0, len(touser)):
-        touser[i] = str(touser[i])
     msgsender = WeChatMSG(touser=touser,
-                          corpid=str(SYSCONFIG["weixin"]["corpid"]),
-                          corpsecret=str(SYSCONFIG["weixin"]["corpsecret"]),
-                          toparty=str(SYSCONFIG["weixin"]["toparty"]),
-                          agentid=str(SYSCONFIG["weixin"]["agentid"]),
-                          title=str(title),
-                          message=str(message),)
+                          corpid=SYSCONFIG["weixin"]["corpid"],
+                          corpsecret=SYSCONFIG["weixin"]["corpsecret"],
+                          toparty=SYSCONFIG["weixin"]["toparty"],
+                          agentid=SYSCONFIG["weixin"]["agentid"],
+                          title=title,
+                          message=message,)
 
     access_token_response = msgsender.geturl(msgsender.gettoken_url, msgsender.gettoken_content)
     access_token =  json.loads(access_token_response)['access_token']
@@ -614,6 +615,50 @@ def SendToEmail(sender='', receiver=[], subject='', message=''):
     except Exception as e:
         print("Send Email faild!  ERROR! %s" % e)
 
+class ConvertAnyToStr(object):
+    '''
+    将任意接收到的类型unicode值转换为最基础的UTF-8编码字符串
+    :param s:
+    :return:
+    '''
+
+    def dictToStr(self,dic):
+        tmpdic = {}
+        for k,v in dic.items():
+            if type(v) == list:
+                tmpdic[str(k)] = self.listToStr(v)
+                continue
+            elif type(v) == dict:
+                tmpdic[str(k)] = self.dictToStr(v)
+                continue
+            else:
+                tmpdic[str(k)] = self.unicodeToStr(v)
+        return tmpdic
+    def listToStr(self, li):
+        for i in range(0, len(li)):
+            # print(type(li[i]), li[i])
+            if isinstance(li[i], list):
+                li[i] = self.listToStr(li[i])
+            elif isinstance(li[i], dict):
+                li[i] = self.dictToStr(li[i])
+            elif isinstance(li[i], unicode):
+                li[i] = self.unicodeToStr(li[i])
+
+        return li
+    def unicodeToStr(self, u):
+        if type(u) == unicode:
+            return str(u.encode(encoding='utf-8')).strip()
+        else:
+            return u
+    def returnAny(self, any):
+        if type(any) == dict:
+            return self.dictToStr(any)
+        elif type(any) == list:
+            return self.listToStr(any)
+        elif type(any) == str:
+            return self.unicodeToStr(any)
+        return any
+
 if __name__ == "__main__":
     try:
         print("loading configuration......")
@@ -624,13 +669,13 @@ if __name__ == "__main__":
             for sec in config_file.sections():
                 if sec == 'SystemConfig':
                     for k, v in config_file[sec].items():
-                        SYSCONFIG[k] = json.loads(v)
+                        SYSCONFIG[str(k)] = json.loads(v)
                 elif sec == 'DomainList':
                     for k, v in config_file[sec].items():
-                        DomainList[k] = json.loads(v)
+                        DomainList[str(k)] = json.loads(v)
                 elif sec == 'DomainIpList':
                     for k, v in config_file[sec].items():
-                        DomainIpList[k] = json.loads(v)
+                        DomainIpList[str(k)] = json.loads(v)
         else:
             # 当配置文件不存在时， 应将脚本最上方的配置以字典的形式补充完整，否则将会报错
             config_file.add_section('SystemConfig')
@@ -646,13 +691,18 @@ if __name__ == "__main__":
         print('Loading running configuration failed!  Error: %s' % e)
         sys.exit()
 
+    # 处理Unicode值，将所有遇到的unicode字符串值转换为UTF-8编码字符串
+    SYSCONFIG = ConvertAnyToStr().returnAny(SYSCONFIG)
+    DomainList = ConvertAnyToStr().returnAny(DomainList)
+    DomainIpList = ConvertAnyToStr().returnAny(DomainList)
+
     try:
         print('Program is starting.....')
         sched = BlockingScheduler()
-        CheckDomainICP()
-        CheckDNSRecoder()
-        # sched.add_job(CheckDomainICP, 'cron', minute='*/20')
-        # sched.add_job(CheckDNSRecoder, 'cron', minute='*/20')
+        # CheckDomainICP()
+        # CheckDNSRecoder()
+        sched.add_job(CheckDomainICP, 'cron', minute='*/20')
+        sched.add_job(CheckDNSRecoder, 'cron', minute='*/20')
         try:
             sched.start()
         except (KeyboardInterrupt, SystemExit) as e:
