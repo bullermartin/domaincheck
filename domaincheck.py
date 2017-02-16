@@ -23,7 +23,7 @@ config_file = configparser.ConfigParser()
 
 # 以下为脚本默认运行参数，若存在配置文件，则以配置文件中的配置为准，若配置文件不存在，则必须将以下参数配置正确，脚本会自动生成配置文件
 # 配置文件中所有配置内容符合configparser要求，并所有的值要求符合json格式，否则将运行报错
-'''
+
 SYSCONFIG = {
     "studymode": True,
     # "CHKICPAPIURL" = "http://beian.35.com/manager/Beianquery.aspx"
@@ -35,22 +35,23 @@ SYSCONFIG = {
     },
     "validatecodeurl": "http://beian.35.com/manager/ValidateCode.aspx",
     "picpath": sys.path[0].replace('\\', '/')+'/validatecode/',
-    "interval": 5,
+    "reqinterval": 5,
     "reqtimeout": 60,
-    "pingthreshold": 300,
+    "pingthreshold": 400,
     "alertline" : ['chinanet', 'unicom', 'netcom', 'multiline', 'mobile', 'railcom', 'other', 'oversea'],
     "receiver":{
-        "weixin": ["xx"],
-        "email": ["xx@xx.com"],
+        "weixin": ["sylekon"],
+        "email": ["bullermartin@126.com"],
     },
-    # Ron Team
+    # Weichat Team
     "weixin": {
         "corpid": 'xxx',     # corpid是企业id
-        "corpsecret": 'xxx',   # corpsecret是企业密钥
+        "corpsecret": 'xxxx',   # corpsecret是企业密钥
         'toparty': '1',     # toparty否部门ID列表，多个接收者用‘|’分隔，最多支持100个。当touser为@all时忽略本参数
         'agentid': '0',     # agentid是企业应用的id，整型。可在应用的设置页面查看
         'safe': '1'         # safe否表示是否是保密消息，0表示否，1表示是，默认0
     },
+
     "email": {
         "host": '',
         "port": 0,
@@ -63,15 +64,16 @@ SYSCONFIG = {
 
 DomainList = {
     # 测试域名
-    "baidu": [["baidu.com",False]],
-    "qq": [["qq.com",False]],
+    "baidu": [["baidu.com",True]],
+    "qq": [["qq.com",True]],
 }
-'''
+
+
 # 脚本默认运行参数结束
 
 DomainIpList = {}
 
-# 检查域名ICP备案信息
+# 检查域名ICP备案信息, 通过反射 支持增加ICP查询接口
 def CheckDomainICP():
     print(time.strftime("[%Y-%m-%d  %H:%M:%S] ") + "Check Domain ICP Info")
     try:
@@ -93,12 +95,13 @@ def CheckDomainICP():
                             raise "Don't have ICP Check API source like %s! Please check your ICP Check API source configuration!" % SYSCONFIG["chkicpapiurl"][apisrc]["name"]
 
                         icpres = func(dom[0], apisrc)
+                        print(icpres)
                         if icpres["result"]:  # 如果已查到备案结果则退出循环
                             break
                     # 已查询到结果但没有备案的域名信息发送提醒消息
                     if not icpres["beian"] and icpres["result"]:
                         SendMessage(project, icpres, '备案信息报警')
-                    time.sleep(SYSCONFIG["interval"])
+                    time.sleep(SYSCONFIG["reqinterval"])
                 else:
                     print("请检查%s项目域名列表！" % project)
                     continue
@@ -133,7 +136,7 @@ class CheckDomainICPAct(object):
             "Host": "beian.35.com",
             "Pragma": "no-cache",
             "Upgrade-Insecure-Requests": 1,
-            "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:51.0) Gecko/20100101 Firefox/51.0"
+            "User-Agent": "Mozilla/8.0 (Windows NT 9; WOW64; rv:22.0) Gecko/20191223 Firefox/59.1"
         }
         COOKIES = {}
 
@@ -224,7 +227,7 @@ class CheckDomainICPAct(object):
         return result
 
 
-# 检查DNS解析记录及Ping延时报警
+# 检查DNS解析记录及Ping延时报警， 通过反射支持DNS查询接口
 def CheckDNSRecoder():
     try:
         print(time.strftime("[%Y-%m-%d  %H:%M:%S] " + "Check Domain DNS Recoder"))
@@ -296,7 +299,6 @@ class CheckDNSRecoderAct(object):
                         DomainIpList[dom[0].replace('.', '')] = list(set(self.result['iplist'] + DomainIpList[dom[0].replace('.', '')]))
                     else:
                         DomainIpList[dom[0].replace('.', '')] = list(set(self.result['iplist']))
-
                     # 本域名本次IP地址学习完毕，将结果保存至配置文件
                     if os.path.isfile(config_path):
                         config_file.read(config_path)
@@ -308,8 +310,11 @@ class CheckDNSRecoderAct(object):
                                 config_file.set('DomainIpList', k, json.dumps(temp_iplist))
                             config_file.set('DomainIpList', k, json.dumps(v))
                         config_file.write(open(config_path, "w"))
+
+                        # 写入完毕后，重新加载配置文件
+                        LoadConfiguration()
                     else:
-                        print("Write configuration file fail!")
+                        print("Found new ip address, but faild when write configuration in to file fail!")
                 else:   # 非学习模式时，需要检查是否在解析出的IP不在可信IP列表中
                     for ip in self.result['iplist']:  # 循环判断Ping结果IP是否在可信IP列表中
                         if dom[0].replace('.', '') in DomainIpList.keys():
@@ -348,7 +353,7 @@ class CheckDNSRecoderAct(object):
                 # # 已查询到结果但没有备案的域名信息发送提醒消息
                 # if not dnsres["beian"] and dnsres["result"]:
                 #     SendMessage(project, dnsres, '备案信息报警')
-                time.sleep(SYSCONFIG["interval"])
+                time.sleep(SYSCONFIG["reqinterval"])
         except Exception as e:
             print(e)
 
@@ -387,11 +392,6 @@ class CheckDNSRecoderAct(object):
         except Exception as e:
             print("Cann't get anything from api:%s!  Error:%s" % (SYSCONFIG["chkdomapiurl"][apisrc]['name'], e))
             return
-
-        if SYSCONFIG["studymode"]:
-            pass
-        else:
-            pass
 
     def GetChkPointRes(self, hxs, domain, cpn):
         try:
@@ -659,13 +659,14 @@ class ConvertAnyToStr(object):
             return self.unicodeToStr(any)
         return any
 
-if __name__ == "__main__":
+def LoadConfiguration():
     try:
         print("loading configuration......")
         if os.path.isfile(config_path):
             config_file.read(config_path)
             SYSCONFIG = {}
             DomainList = {}
+            DomainIpList = {}
             for sec in config_file.sections():
                 if sec == 'SystemConfig':
                     for k, v in config_file[sec].items():
@@ -696,8 +697,14 @@ if __name__ == "__main__":
     DomainList = ConvertAnyToStr().returnAny(DomainList)
     DomainIpList = ConvertAnyToStr().returnAny(DomainIpList)
 
+if __name__ == "__main__":
+
+    #加载配置文件
+    LoadConfiguration()
+
+    # 启动任务定时器
     try:
-        print('Program is starting.....')
+        print('Program is running.....')
         sched = BlockingScheduler()
         # CheckDomainICP()
         # CheckDNSRecoder()
